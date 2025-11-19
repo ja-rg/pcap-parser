@@ -160,3 +160,17 @@ pcap_file_t* pcap_open(const char* filename)
     fclose(f);
     return pcap;
 }
+
+void pcap_close(pcap_file_t* pcap)
+{
+    if (!pcap)
+    {
+        return;
+    }
+    for (size_t i = 0; i < pcap->packet_count; i++)
+    {
+        free(pcap->packets[i].data);
+    }
+    free(pcap->packets);
+    free(pcap);
+}

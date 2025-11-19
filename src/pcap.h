@@ -52,3 +52,4 @@ typedef struct
 } pcap_file_t;
 
 pcap_file_t* pcap_open(const char* filename);
+void pcap_close(pcap_file_t* pcap);
