@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "lib/pcap-master.h"
 
-
 int main(int argc, char *argv[])
 {
     if (argc != 2)
@@ -28,16 +27,9 @@ int main(int argc, char *argv[])
     }
 
     /* Detect file endianness based on magic number as read on this host */
-    pcap_endian_t file_endian = PCAP_ENDIAN_UNKNOWN;
-    if (gh.magic_number == PCAP_MAGIC_LE)
-    {
-        file_endian = PCAP_ENDIAN_FILE_LE;
-    }
-    else if (gh.magic_number == PCAP_MAGIC_BE)
-    {
-        file_endian = PCAP_ENDIAN_FILE_BE;
-    }
-    else
+    pcap_endian_t file_endian = detect_pcap_endianness(gh.magic_number);
+
+    if (file_endian == PCAP_ENDIAN_UNKNOWN)
     {
         fprintf(stderr, "Unknown or unsupported PCAP magic number: 0x%08x\n",
                 gh.magic_number);
@@ -45,21 +37,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int need_swap = 0;
-    /* Assume host is little-endian (x86/x86_64). */
-    if (file_endian == PCAP_ENDIAN_FILE_BE)
-    {
-        need_swap = 1;
-    }
+    int need_swap = file_endian == PCAP_ENDIAN_FILE_BE;
 
     if (need_swap)
     {
-        gh.version_major = swap16(gh.version_major);
-        gh.version_minor = swap16(gh.version_minor);
-        gh.thiszone = (int32_t)swap32((uint32_t)gh.thiszone);
-        gh.sigfigs = swap32(gh.sigfigs);
-        gh.snaplen = swap32(gh.snaplen);
-        gh.network = swap32(gh.network);
+        swap_pcap_global_header(&gh);
     }
 
     printf("PCAP Global Header:\n");

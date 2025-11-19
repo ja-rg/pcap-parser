@@ -51,3 +51,31 @@ typedef enum
     PCAP_ENDIAN_FILE_LE,
     PCAP_ENDIAN_FILE_BE
 } pcap_endian_t;
+
+// Function to detect PCAP file endianness based on magic number
+static pcap_endian_t detect_pcap_endianness(uint32_t magic_number)
+{
+    if (magic_number == PCAP_MAGIC_LE)
+    {
+        return PCAP_ENDIAN_FILE_LE;
+    }
+    else if (magic_number == PCAP_MAGIC_BE)
+    {
+        return PCAP_ENDIAN_FILE_BE;
+    }
+    else
+    {
+        return PCAP_ENDIAN_UNKNOWN;
+    }
+}
+
+static void swap_pcap_global_header(pcap_global_header_t* gh)
+{
+    gh->version_major = swap16(gh->version_major);
+    gh->version_minor = swap16(gh->version_minor);
+    gh->thiszone = (int32_t)swap32((uint32_t)gh->thiszone);
+    gh->sigfigs = swap32(gh->sigfigs);
+    gh->snaplen = swap32(gh->snaplen);
+    gh->network = swap32(gh->network);
+}
+// End of lib/pcap-master.h
