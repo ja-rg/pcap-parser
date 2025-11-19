@@ -1,4 +1,5 @@
 <img width="4961" height="3508" alt="pcap" src="https://github.com/user-attachments/assets/23ea18ce-88d8-4209-983f-87d3fc2c9fc0" />
+
 # PCAP Parser — Classic `.pcap` File Reader in C
 
 A minimal and educational PCAP parser written in C.
