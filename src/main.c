@@ -25,5 +25,15 @@ int main(int argc, char *argv[])
     printf("  Snaplen: %u\n", pcap->global_header.snaplen);
     printf("  Network: %u\n", pcap->global_header.network);
     printf("Total Packets: %zu\n", pcap->packet_count);
+    for (size_t i = 0; i < pcap->packet_count; i++)
+    {
+        pcap_packet_t *pkt = &pcap->packets[i];
+        printf("Packet %zu:\n", i + 1);
+        printf("  Timestamp: %s\n", pkt->timestamp_str);
+        printf("  Included Length: %u\n", pkt->header.incl_len);
+        printf("  Original Length: %u\n", pkt->header.orig_len);
+    }
+    // Free allocated memory
+    pcap_close(pcap);
     return 0;
 }

@@ -41,6 +41,7 @@ typedef struct
 {
     pcap_packet_header_t header;
     uint8_t *data;
+    char timestamp_str[84]; // Formatted timestamp string
 } pcap_packet_t;
 
 typedef struct

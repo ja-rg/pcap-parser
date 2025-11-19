@@ -49,6 +49,24 @@ static void swap_pcap_packet_header(pcap_packet_header_t* ph)
     ph->orig_len = swap32(ph->orig_len);
 }
 
+// timestamp conversion to (YYYY-MM-DD HH:MM:SS.MICROSECONDS)
+#include <time.h>
+#include <inttypes.h>
+static void format_timestamp(uint32_t ts_sec, uint32_t ts_usec, char* buffer, size_t buflen)
+{
+    time_t rawtime = (time_t)ts_sec;
+    struct tm* timeinfo = gmtime(&rawtime);
+    snprintf(buffer, buflen, "%04d-%02d-%02d %02d:%02d:%02d.%06" PRIu32,
+             timeinfo->tm_year + 1900,
+             timeinfo->tm_mon + 1,
+             timeinfo->tm_mday,
+             timeinfo->tm_hour,
+             timeinfo->tm_min,
+             timeinfo->tm_sec,
+             ts_usec);
+}
+
+
 pcap_file_t* pcap_open(const char* filename)
 {
     // Filename sanity check
@@ -141,6 +159,7 @@ pcap_file_t* pcap_open(const char* filename)
         }
         pcap_packet_t* pkt = &pcap->packets[pcap->packet_count];
         pkt->header = ph;
+        format_timestamp(ph.ts_sec, ph.ts_usec, pkt->timestamp_str, sizeof(pkt->timestamp_str));
         pkt->data = (uint8_t*)malloc(ph.incl_len);
         if (!pkt->data && ph.incl_len > 0)
         {
