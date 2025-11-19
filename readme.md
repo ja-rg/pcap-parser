@@ -33,7 +33,7 @@ pcap-parser/
 ├── examples/
 │   └── http.cap
 ├── main.c
-├── README.md
+├── readme.md
 └── LICENSE
 ```
 
