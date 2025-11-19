@@ -26,21 +26,6 @@ typedef struct
 
 #pragma pack(pop)
 
-/* Endianness handling */
-
-static uint16_t swap16(uint16_t x)
-{
-    return (uint16_t)((x >> 8) | (x << 8));
-}
-
-static uint32_t swap32(uint32_t x)
-{
-    return ((x & 0x000000FFU) << 24) |
-           ((x & 0x0000FF00U) << 8) |
-           ((x & 0x00FF0000U) >> 8) |
-           ((x & 0xFF000000U) >> 24);
-}
-
 /* Magic numbers (classic pcap, microsecond resolution) */
 #define PCAP_MAGIC_LE 0xa1b2c3d4U /* file in little-endian */
 #define PCAP_MAGIC_BE 0xd4c3b2a1U /* file in big-endian   */
@@ -52,30 +37,18 @@ typedef enum
     PCAP_ENDIAN_FILE_BE
 } pcap_endian_t;
 
-// Function to detect PCAP file endianness based on magic number
-static pcap_endian_t detect_pcap_endianness(uint32_t magic_number)
+typedef struct
 {
-    if (magic_number == PCAP_MAGIC_LE)
-    {
-        return PCAP_ENDIAN_FILE_LE;
-    }
-    else if (magic_number == PCAP_MAGIC_BE)
-    {
-        return PCAP_ENDIAN_FILE_BE;
-    }
-    else
-    {
-        return PCAP_ENDIAN_UNKNOWN;
-    }
-}
+    pcap_packet_header_t header;
+    uint8_t *data;
+} pcap_packet_t;
 
-static void swap_pcap_global_header(pcap_global_header_t* gh)
+typedef struct
 {
-    gh->version_major = swap16(gh->version_major);
-    gh->version_minor = swap16(gh->version_minor);
-    gh->thiszone = (int32_t)swap32((uint32_t)gh->thiszone);
-    gh->sigfigs = swap32(gh->sigfigs);
-    gh->snaplen = swap32(gh->snaplen);
-    gh->network = swap32(gh->network);
-}
-// End of lib/pcap-master.h
+    pcap_global_header_t global_header;
+    pcap_packet_t *packets;
+    size_t packet_count;
+    pcap_endian_t file_endianness;
+} pcap_file_t;
+
+pcap_file_t* pcap_open(const char* filename);
