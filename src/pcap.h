@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef PCAP_H
+#define PCAP_H
 #pragma pack(push, 1) // Ensure no padding in structures
 
 /* Global PCAP header: 24 bytes */
@@ -52,5 +54,6 @@ typedef struct
     pcap_endian_t file_endianness;
 } pcap_file_t;
 
-pcap_file_t* pcap_open(const char* filename);
-void pcap_close(pcap_file_t* pcap);
+pcap_file_t *pcap_open(const char *filename);
+void pcap_close(pcap_file_t *pcap);
+#endif // PCAP_H

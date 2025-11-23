@@ -1,5 +1,6 @@
 #include <stdio.h>
-#include "pcap.h"
+#include <assert.h>
+#include "ethernet.h"
 
 int main(int argc, char *argv[])
 {
@@ -32,6 +33,41 @@ int main(int argc, char *argv[])
         printf("  Timestamp: %s\n", pkt->timestamp_str);
         printf("  Included Length: %u\n", pkt->header.incl_len);
         printf("  Original Length: %u\n", pkt->header.orig_len);
+
+        ethernet_header_t eth;
+        assert(parse_ethernet_header(pkt->data, pkt->header.incl_len, &eth) && "Failed to parse Ethernet header");
+
+        // Ahora puedes inspeccionar:
+        switch (eth.frame_type)
+        {
+        case ETH_FRAME_ETHERNET_II:
+            // eth.ethertype es válido: IPv4, ARP, IPv6, etc.
+            break;
+
+        case ETH_FRAME_VLAN:
+            // eth.vlan_id / eth.ethertype
+            printf("  VLAN Frame, VLAN ID: %u, Ethertype: 0x%04x\n", eth.vlan_id, eth.ethertype);
+            break;
+
+        case ETH_FRAME_8023_LLC:
+            // no tienes ethertype, viene LLC/SNAP después del header
+            printf("  802.3 LLC Frame\n");
+            break;
+
+        default:
+            break;
+        }
+
+        /* const uint8_t *l3_data = packet_data + eth.header_length;
+        size_t l3_len = packet_length - eth.header_length;
+
+        // Ejemplo: parsear IPv4 si aplica
+        if ((eth.frame_type == ETH_FRAME_ETHERNET_II || eth.frame_type == ETH_FRAME_VLAN) &&
+            eth.ethertype == ETHERTYPE_IPV4 &&
+            l3_len >= 20)
+        {
+            // Aquí podrías llamar a parse_ipv4_header(l3_data, l3_len, ...);
+        } */
     }
     // Free allocated memory
     pcap_close(pcap);
