@@ -62,7 +62,7 @@ Requires GCC or Clang.
 Compile the parser:
 
 ```bash
-gcc -o pcap_reader main.c
+make
 ```
 
 Run it with a PCAP file:
