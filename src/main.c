@@ -1,16 +1,37 @@
 #include <stdio.h>
 #include <assert.h>
-#include "ethernet.h"
+#include <string.h>
+#include "pcap.h"
+#include <inttypes.h>
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
+    if (argc < 2 || argc > 3)
     {
-        fprintf(stderr, "Usage: %s <pcap_file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <pcap_file> [ethernet|ipv4|tcp|http]\n", argv[0]);
         return 1;
     }
 
-    pcap_file_t *pcap = pcap_open(argv[1]);
+    const char *filename = argv[1];
+    int max_layer = LAYER_HTTP; // default
+    if (argc == 3)
+    {
+        if (strcmp(argv[2], "ethernet") == 0)
+            max_layer = LAYER_ETHERNET;
+        else if (strcmp(argv[2], "ipv4") == 0)
+            max_layer = LAYER_IPV4;
+        else if (strcmp(argv[2], "tcp") == 0)
+            max_layer = LAYER_TCP;
+        else if (strcmp(argv[2], "http") == 0)
+            max_layer = LAYER_HTTP;
+        else
+        {
+            fprintf(stderr, "Unknown layer '%s'\n", argv[2]);
+            return 1;
+        }
+    }
+
+    pcap_file_t *pcap = pcap_open(filename);
 
     if (!pcap)
     {
@@ -33,41 +54,51 @@ int main(int argc, char *argv[])
         printf("  Timestamp: %s\n", pkt->timestamp_str);
         printf("  Included Length: %u\n", pkt->header.incl_len);
         printf("  Original Length: %u\n", pkt->header.orig_len);
-
-        ethernet_header_t eth;
-        assert(parse_ethernet_header(pkt->data, pkt->header.incl_len, &eth) && "Failed to parse Ethernet header");
-
-        // Ahora puedes inspeccionar:
-        switch (eth.frame_type)
+        pcap_packet_promoted_t prom = {0};
+        int reached = pcap_packet_promote_layers(pkt, max_layer, &prom);
+        printf("  Promotion reached layer: %d\n", reached);
+        if (prom.has_ethernet)
         {
-        case ETH_FRAME_ETHERNET_II:
-            // eth.ethertype es válido: IPv4, ARP, IPv6, etc.
-            break;
-
-        case ETH_FRAME_VLAN:
-            // eth.vlan_id / eth.ethertype
-            printf("  VLAN Frame, VLAN ID: %u, Ethertype: 0x%04x\n", eth.vlan_id, eth.ethertype);
-            break;
-
-        case ETH_FRAME_8023_LLC:
-            // no tienes ethertype, viene LLC/SNAP después del header
-            printf("  802.3 LLC Frame\n");
-            break;
-
-        default:
-            break;
+            char src_mac[18], dst_mac[18];
+            mac_to_string(src_mac, prom.eth.src_mac);
+            mac_to_string(dst_mac, prom.eth.dest_mac);
+            printf("  Ethernet: %s -> %s, ethertype=0x%04x\n", src_mac, dst_mac, prom.eth.ethertype);
         }
-
-        /* const uint8_t *l3_data = packet_data + eth.header_length;
-        size_t l3_len = packet_length - eth.header_length;
-
-        // Ejemplo: parsear IPv4 si aplica
-        if ((eth.frame_type == ETH_FRAME_ETHERNET_II || eth.frame_type == ETH_FRAME_VLAN) &&
-            eth.ethertype == ETHERTYPE_IPV4 &&
-            l3_len >= 20)
+        if (prom.has_ipv4)
         {
-            // Aquí podrías llamar a parse_ipv4_header(l3_data, l3_len, ...);
-        } */
+            uint32_t s = prom.ip.src_addr;
+            uint32_t d = prom.ip.dst_addr;
+            printf("  IPv4: %u.%u.%u.%u -> %u.%u.%u.%u, proto=%u\n",
+                   (unsigned)((s >> 24) & 0xFF), (unsigned)((s >> 16) & 0xFF), (unsigned)((s >> 8) & 0xFF), (unsigned)(s & 0xFF),
+                   (unsigned)((d >> 24) & 0xFF), (unsigned)((d >> 16) & 0xFF), (unsigned)((d >> 8) & 0xFF), (unsigned)(d & 0xFF),
+                   prom.ip.protocol);
+        }
+        if (prom.has_tcp)
+        {
+            printf("  TCP: %u -> %u, payload_len=%zu\n", prom.tcp.src_port, prom.tcp.dst_port, prom.tcp.payload_len);
+        }
+        if (prom.has_http)
+        {
+            if (prom.http.type == HTTP_REQUEST)
+            {
+                printf("  HTTP Request: method=");
+                for (size_t m = 0; m < prom.http.method_len; m++)
+                    putchar(prom.http.method[m]);
+                putchar('\n');
+                const char *cats[] = {"UNKNOWN", "DOCUMENT", "FILE", "IMAGE", "VIDEO"};
+                printf("    Inferred category: %s\n", cats[prom.http.content_category]);
+            }
+            else if (prom.http.type == HTTP_RESPONSE)
+            {
+                printf("  HTTP Response: status=%d\n", prom.http.status_code);
+                if (prom.http.content_type && prom.http.content_type_len > 0)
+                {
+                    printf("    Content-Type: %.*s\n", (int)prom.http.content_type_len, (const char *)prom.http.content_type);
+                }
+                const char *cats[] = {"UNKNOWN", "DOCUMENT", "FILE", "IMAGE", "VIDEO"};
+                printf("    Category: %s\n", cats[prom.http.content_category]);
+            }
+        }
     }
     // Free allocated memory
     pcap_close(pcap);

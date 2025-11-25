@@ -1,4 +1,3 @@
-#include "pcap.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -11,6 +10,11 @@
 
 // Tamaño mínimo de un header Ethernet base (sin VLAN)
 #define ETHERNET_MIN_HEADER_SIZE 14
+
+typedef enum
+{
+    HTTP = 0
+} Protocols_t;
 
 typedef enum
 {
@@ -45,9 +49,14 @@ typedef struct
 
     // Bytes totales de cabecera de enlace antes del payload de capa 3 (IP, LLC, etc.)
     size_t header_length;
+
+    // Pointer to the next protocol header (e.g., IP header)
+    void *siguiente_capa;
 } ethernet_header_t;
 
 // Función para parsear header Ethernet desde datos crudos
+// Devuelve true en éxito y rellena `eth_header`. No realiza malloc;
+// `eth_header->siguiente_capa` apuntará dentro de `packet_data`.
 bool parse_ethernet_header(const uint8_t *packet_data,
                            size_t packet_length,
                            ethernet_header_t *eth_header);
