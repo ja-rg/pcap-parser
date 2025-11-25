@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #ifndef PCAP_H
 #define PCAP_H
@@ -53,6 +54,43 @@ typedef struct
     size_t packet_count;
     pcap_endian_t file_endianness;
 } pcap_file_t;
+
+// --- Promotion API types & prototypes ---
+
+#include "ethernet.h"
+#include "ip.h"
+#include "tcp.h"
+#include "http.h"
+
+typedef enum
+{
+    LAYER_NONE = 0,
+    LAYER_ETHERNET,
+    LAYER_IPV4,
+    LAYER_TCP,
+    LAYER_HTTP
+} packet_layer_t;
+
+typedef struct
+{
+    bool has_ethernet;
+    ethernet_header_t eth;
+    bool has_ipv4;
+    ipv4_header_t ip;
+    bool has_tcp;
+    tcp_header_t tcp;
+    bool has_http;
+    http_info_t http;
+} pcap_packet_promoted_t;
+
+// Promotion functions. Devuelven 0 en éxito, <0 en error (-1 argumentos inválidos, -2 truncado, -3 tipo inaplicable)
+int pcap_packet_promote_to_ethernet(pcap_packet_t *pkt, ethernet_header_t *out);
+int pcap_packet_promote_to_ipv4(pcap_packet_t *pkt, ipv4_header_t *out);
+int pcap_packet_promote_to_tcp(pcap_packet_t *pkt, tcp_header_t *out);
+int pcap_packet_promote_to_http(pcap_packet_t *pkt, http_info_t *out);
+
+// Encadenador: promueve hasta max_layer (use packet_layer_t values). Rellena `out` si no es NULL.
+int pcap_packet_promote_layers(pcap_packet_t *pkt, int max_layer, pcap_packet_promoted_t *out);
 
 pcap_file_t *pcap_open(const char *filename);
 void pcap_close(pcap_file_t *pcap);

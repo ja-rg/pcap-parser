@@ -193,3 +193,98 @@ void pcap_close(pcap_file_t* pcap)
     free(pcap->packets);
     free(pcap);
 }
+
+// --- Promotion functions ---
+#include "pcap.h"
+
+int pcap_packet_promote_to_ethernet(pcap_packet_t *pkt, ethernet_header_t *out)
+{
+    if (!pkt || !pkt->data || !out) return -1;
+    if (!parse_ethernet_header(pkt->data, pkt->header.incl_len, out)) return -2;
+    return 0;
+}
+
+int pcap_packet_promote_to_ipv4(pcap_packet_t *pkt, ipv4_header_t *out)
+{
+    if (!pkt || !pkt->data || !out) return -1;
+    ethernet_header_t eth;
+    int r = pcap_packet_promote_to_ethernet(pkt, &eth);
+    if (r != 0) return r;
+    if (!(eth.frame_type == ETH_FRAME_ETHERNET_II || eth.frame_type == ETH_FRAME_VLAN)) return -3;
+    if (eth.ethertype != ETHERTYPE_IPV4) return -3;
+    const uint8_t *l3 = (const uint8_t *)eth.siguiente_capa;
+    size_t l3_len = 0;
+    if (pkt->header.incl_len < eth.header_length) return -2;
+    l3_len = pkt->header.incl_len - eth.header_length;
+    if (!parse_ipv4_header(l3, l3_len, out)) return -2;
+    return 0;
+}
+
+int pcap_packet_promote_to_tcp(pcap_packet_t *pkt, tcp_header_t *out)
+{
+    if (!pkt || !pkt->data || !out) return -1;
+    ipv4_header_t ip;
+    int r = pcap_packet_promote_to_ipv4(pkt, &ip);
+    if (r != 0) return r;
+    if (ip.protocol != 6) return -3; // Not TCP
+    if (!parse_tcp_header(ip.payload, ip.payload_len, out)) return -2;
+    return 0;
+}
+
+int pcap_packet_promote_to_http(pcap_packet_t *pkt, http_info_t *out)
+{
+    if (!pkt || !pkt->data || !out) return -1;
+    tcp_header_t tcp;
+    int r = pcap_packet_promote_to_tcp(pkt, &tcp);
+    if (r != 0) return r;
+    if (tcp.payload_len == 0) return -3;
+    if (!parse_http_payload(tcp.payload, tcp.payload_len, out)) return -2;
+    return 0;
+}
+
+int pcap_packet_promote_layers(pcap_packet_t *pkt, int max_layer, pcap_packet_promoted_t *out)
+{
+    if (!pkt || !pkt->data) return -1;
+    int achieved = LAYER_NONE;
+    if (max_layer >= LAYER_ETHERNET)
+    {
+        ethernet_header_t eth;
+        if (pcap_packet_promote_to_ethernet(pkt, &eth) == 0)
+        {
+            achieved = LAYER_ETHERNET;
+            if (out) { out->has_ethernet = true; out->eth = eth; }
+        }
+        else return -2;
+    }
+    if (max_layer >= LAYER_IPV4 && achieved >= LAYER_ETHERNET)
+    {
+        ipv4_header_t ip;
+        if (pcap_packet_promote_to_ipv4(pkt, &ip) == 0)
+        {
+            achieved = LAYER_IPV4;
+            if (out) { out->has_ipv4 = true; out->ip = ip; }
+        }
+        else return achieved; // return highest reached
+    }
+    if (max_layer >= LAYER_TCP && achieved >= LAYER_IPV4)
+    {
+        tcp_header_t tcp;
+        if (pcap_packet_promote_to_tcp(pkt, &tcp) == 0)
+        {
+            achieved = LAYER_TCP;
+            if (out) { out->has_tcp = true; out->tcp = tcp; }
+        }
+        else return achieved;
+    }
+    if (max_layer >= LAYER_HTTP && achieved >= LAYER_TCP)
+    {
+        http_info_t http;
+        if (pcap_packet_promote_to_http(pkt, &http) == 0)
+        {
+            achieved = LAYER_HTTP;
+            if (out) { out->has_http = true; out->http = http; }
+        }
+        else return achieved;
+    }
+    return achieved;
+}
